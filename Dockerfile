@@ -13,5 +13,4 @@ COPY . .
 EXPOSE 5050
 ENV PORT=5050
 
-# Запуск через gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5050", "newton_web:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5050} newton_web:app"]
