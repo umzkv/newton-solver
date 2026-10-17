@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: newton-solver
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn newton_web:app
+    plan: free

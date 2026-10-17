@@ -1,0 +1,647 @@
+"""
+Newton's Method — Web App (Flask)
+Запускается на компьютере, открывается с iPhone через Wi-Fi.
+"""
+
+from flask import Flask, request, jsonify, render_template_string
+import numpy as np
+import json
+
+app = Flask(__name__)
+
+
+# ─── Ядро метода Ньютона ──────────────────────────────────────────
+
+def numerical_jacobian(F, x, eps=1e-7):
+    n = len(x)
+    J = np.zeros((n, n))
+    f0 = F(x)
+    for j in range(n):
+        xp = x.copy(); xp[j] += eps
+        J[:, j] = (F(xp) - f0) / eps
+    return J
+
+
+def newton_method(F, x0, tol=1e-10, max_iter=100):
+    x = np.array(x0, dtype=float)
+    history = []
+    for k in range(max_iter):
+        Fx = F(x)
+        res = float(np.linalg.norm(Fx))
+        history.append({
+            "iter": k + 1,
+            "x": x.tolist(),
+            "residual": res,
+        })
+        J = numerical_jacobian(F, x)
+        try:
+            dx = np.linalg.solve(J, -Fx)
+        except np.linalg.LinAlgError:
+            return x.tolist(), {"converged": False, "iterations": k,
+                                "residual": res, "history": history,
+                                "error": "Якобиан вырожден"}
+        x = x + dx
+        step = float(np.linalg.norm(dx))
+        history[-1]["step"] = step
+        if step < tol:
+            final_res = float(np.linalg.norm(F(x)))
+            history.append({"iter": k + 2, "x": x.tolist(),
+                             "residual": final_res, "step": 0.0})
+            return x.tolist(), {"converged": True, "iterations": k + 1,
+                                "residual": final_res, "history": history,
+                                "error": None}
+    return x.tolist(), {"converged": False, "iterations": max_iter,
+                        "residual": float(np.linalg.norm(F(x))),
+                        "history": history, "error": "Достигнут лимит итераций"}
+
+
+# ─── HTML страница ────────────────────────────────────────────────
+
+HTML = r"""
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#1e1e2e"/>
+  <title>Метод Ньютона</title>
+  <style>
+    :root {
+      --bg:        #1e1e2e;
+      --surface:   #2a2a3e;
+      --surface2:  #313145;
+      --accent:    #7c6af7;
+      --accent2:   #56cfb2;
+      --success:   #a6e3a1;
+      --error:     #f38ba8;
+      --warn:      #fab387;
+      --text:      #cdd6f4;
+      --muted:     #6c7086;
+      --border:    #45475a;
+      --entry:     #181825;
+      --radius:    14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: var(--bg); color: var(--text); font-family: -apple-system, "SF Pro Display", Helvetica, sans-serif; min-height: 100dvh; }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      padding: 18px 20px 14px;
+      padding-top: max(18px, env(safe-area-inset-top));
+      text-align: center;
+      position: sticky; top: 0; z-index: 100;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: 20px; font-weight: 700; color: var(--accent); }
+    header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Layout ── */
+    main { padding: 16px; max-width: 700px; margin: 0 auto; padding-bottom: 40px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 13px; font-weight: 600;
+      color: var(--accent); text-transform: uppercase;
+      letter-spacing: .06em; margin-bottom: 12px;
+    }
+
+    /* ── Examples ── */
+    .examples { display: flex; flex-direction: column; gap: 8px; }
+    .ex-btn {
+      background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 14px; font-size: 14px; cursor: pointer;
+      text-align: left; transition: background .15s;
+    }
+    .ex-btn:active { background: var(--border); }
+
+    /* ── n-selector ── */
+    .n-selector { display: flex; gap: 8px; }
+    .n-btn {
+      flex: 1; padding: 10px; border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: var(--surface2); color: var(--text);
+      font-size: 16px; font-weight: 600; cursor: pointer;
+      transition: all .15s;
+    }
+    .n-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ── Equations ── */
+    .eq-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .eq-label { color: var(--accent2); font-weight: 700; font-size: 15px; min-width: 28px; }
+    .eq-row input, .param-row input, #x0-input {
+      flex: 1; background: var(--entry); color: var(--text);
+      border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; font-size: 14px; font-family: "SF Mono", Menlo, monospace;
+      outline: none; transition: border-color .2s;
+      -webkit-appearance: none;
+    }
+    .eq-row input:focus, .param-row input:focus, #x0-input:focus {
+      border-color: var(--accent);
+    }
+
+    /* ── Params ── */
+    .param-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .param-label { color: var(--muted); font-size: 13px; min-width: 120px; }
+
+    /* ── Buttons ── */
+    .solve-btn {
+      width: 100%; padding: 15px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius);
+      font-size: 17px; font-weight: 700; cursor: pointer;
+      transition: opacity .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .solve-btn:active { opacity: .8; }
+    .solve-btn:disabled { opacity: .5; }
+
+    /* ── Status badge ── */
+    #status-badge {
+      display: none; text-align: center;
+      padding: 10px 16px; border-radius: 10px;
+      font-size: 14px; font-weight: 600; margin-bottom: 14px;
+    }
+    #status-badge.success { background: #1d3a1d; color: var(--success); }
+    #status-badge.error   { background: #3a1d1d; color: var(--error);   }
+
+    /* ── Solution box ── */
+    #solution-box { display: none; }
+    .solution-text {
+      background: var(--entry); border-radius: 10px;
+      padding: 14px; font-family: "SF Mono", Menlo, monospace;
+      font-size: 14px; line-height: 1.7; white-space: pre-wrap;
+    }
+    .copy-btn {
+      margin-top: 10px; padding: 9px 18px;
+      background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; cursor: pointer;
+    }
+    .copy-btn:active { background: var(--border); }
+
+    /* ── Table ── */
+    #table-box { display: none; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      background: var(--surface2); color: var(--accent);
+      padding: 9px 10px; text-align: center;
+      font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+      position: sticky; top: 0;
+    }
+    td { padding: 8px 10px; text-align: center; border-bottom: 1px solid var(--border); }
+    tr:last-child td { color: var(--success); font-weight: 600; }
+    tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+
+    /* ── Convergence chart ── */
+    #chart-box { display: none; }
+    canvas#chart { width: 100% !important; border-radius: 10px; }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block; width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Newton's Method</h1>
+  <p>Системы нелинейных уравнений</p>
+</header>
+
+<main>
+
+  <!-- Примеры -->
+  <div class="card">
+    <div class="card-title">📚 Примеры</div>
+    <div class="examples">
+      <button class="ex-btn" onclick="loadExample(0)">🔵 Окружность ∩ Парабола (2×2)</button>
+      <button class="ex-btn" onclick="loadExample(1)">🟣 Классическая Burden & Faires (3×3)</button>
+      <button class="ex-btn" onclick="loadExample(2)">🟢 Тригонометрическая (2×2)</button>
+    </div>
+  </div>
+
+  <!-- Размер системы -->
+  <div class="card">
+    <div class="card-title">🔢 Количество уравнений</div>
+    <div class="n-selector">
+      <button class="n-btn active" id="n-2" onclick="setN(2)">2</button>
+      <button class="n-btn"        id="n-3" onclick="setN(3)">3</button>
+      <button class="n-btn"        id="n-4" onclick="setN(4)">4</button>
+      <button class="n-btn"        id="n-5" onclick="setN(5)">5</button>
+    </div>
+  </div>
+
+  <!-- Уравнения -->
+  <div class="card">
+    <div class="card-title">📝 Уравнения (F<sub>i</sub>(x) = 0)</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+      Переменные: x[0], x[1], ... &nbsp;|&nbsp; np.sin, np.cos, np.exp, np.log, np.pi
+    </div>
+    <div id="eq-container"></div>
+  </div>
+
+  <!-- Начальное приближение -->
+  <div class="card">
+    <div class="card-title">🎯 Начальное приближение x₀</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Числа через пробел</div>
+    <input id="x0-input" type="text" placeholder="напр. 1.0  0.5" inputmode="decimal"/>
+  </div>
+
+  <!-- Параметры -->
+  <div class="card">
+    <div class="card-title">⚙️ Параметры</div>
+    <div class="param-row">
+      <span class="param-label">Точность (tol)</span>
+      <input id="tol-input" type="text" value="1e-10" style="max-width:150px;"/>
+    </div>
+    <div class="param-row">
+      <span class="param-label">Макс. итераций</span>
+      <input id="iter-input" type="number" value="100" style="max-width:150px;"/>
+    </div>
+  </div>
+
+  <!-- Кнопка -->
+  <button class="solve-btn" id="solve-btn" onclick="solve()">▶ &nbsp;Решить</button>
+
+  <!-- Статус -->
+  <div id="status-badge"></div>
+
+  <!-- Решение -->
+  <div class="card" id="solution-box">
+    <div class="card-title">✅ Решение</div>
+    <div class="solution-text" id="solution-text"></div>
+    <button class="copy-btn" onclick="copySolution()">📋 Копировать</button>
+  </div>
+
+  <!-- Таблица -->
+  <div class="card" id="table-box">
+    <div class="card-title">📊 Таблица итераций</div>
+    <div style="overflow-x:auto;">
+      <table id="iter-table">
+        <thead>
+          <tr><th>Итер.</th><th>‖F(x)‖</th><th>‖Δx‖</th><th>Значения x</th></tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- График -->
+  <div class="card" id="chart-box">
+    <div class="card-title">📈 Сходимость</div>
+    <canvas id="chart"></canvas>
+  </div>
+
+</main>
+
+<script>
+// ── Данные примеров ──────────────────────────────────────────────
+const EXAMPLES = [
+  {
+    n: 2,
+    eqs: ["x[0]**2 + x[1]**2 - 4", "x[0]**2 - x[1] - 1"],
+    x0: "1.0  0.5"
+  },
+  {
+    n: 3,
+    eqs: [
+      "3*x[0] - np.cos(x[1]*x[2]) - 0.5",
+      "x[0]**2 - 81*(x[1]+0.1)**2 + np.sin(x[2]) + 1.06",
+      "np.exp(-x[0]*x[1]) + 20*x[2] + (10*np.pi-3)/3"
+    ],
+    x0: "0.1  0.1  -0.1"
+  },
+  {
+    n: 2,
+    eqs: ["np.sin(x[0]) + x[1] - 1.2", "x[0] + np.cos(x[1]) - 0.8"],
+    x0: "0.5  0.5"
+  }
+];
+
+let currentN = 2;
+let chartInstance = null;
+
+// ── Инициализация ────────────────────────────────────────────────
+window.onload = () => { setN(2); loadExample(0); };
+
+function setN(n) {
+  currentN = n;
+  [2,3,4,5].forEach(i => {
+    document.getElementById('n-'+i).classList.toggle('active', i===n);
+  });
+  const container = document.getElementById('eq-container');
+  container.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const row = document.createElement('div');
+    row.className = 'eq-row';
+    row.innerHTML = `<span class="eq-label">F${i+1} =</span>
+      <input type="text" id="eq-${i}" placeholder="выражение" autocorrect="off" autocapitalize="off" spellcheck="false"/>`;
+    container.appendChild(row);
+  }
+}
+
+function loadExample(idx) {
+  const ex = EXAMPLES[idx];
+  setN(ex.n);
+  ex.eqs.forEach((eq, i) => {
+    const el = document.getElementById('eq-'+i);
+    if (el) el.value = eq;
+  });
+  document.getElementById('x0-input').value = ex.x0;
+  hideResults();
+}
+
+// ── Решить ───────────────────────────────────────────────────────
+async function solve() {
+  const equations = [];
+  for (let i = 0; i < currentN; i++) {
+    const el = document.getElementById('eq-'+i);
+    if (!el || !el.value.trim()) { alert(`Уравнение F${i+1} не заполнено!`); return; }
+    equations.push(el.value.trim());
+  }
+
+  const x0raw = document.getElementById('x0-input').value.trim().split(/\s+/).map(Number);
+  if (x0raw.some(isNaN) || x0raw.length !== currentN) {
+    alert(`Нужно ${currentN} начальных значений через пробел.`); return;
+  }
+
+  const tol = parseFloat(document.getElementById('tol-input').value) || 1e-10;
+  const max_iter = parseInt(document.getElementById('iter-input').value) || 100;
+
+  const btn = document.getElementById('solve-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Вычисление...';
+  hideResults();
+
+  try {
+    const resp = await fetch('/solve', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ equations, x0: x0raw, tol, max_iter })
+    });
+    const data = await resp.json();
+    if (data.error_msg) { showError(data.error_msg); }
+    else { showResults(data); }
+  } catch(e) {
+    showError('Ошибка соединения: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '▶ &nbsp;Решить';
+  }
+}
+
+// ── Отображение результатов ──────────────────────────────────────
+function showResults(data) {
+  const info = data.info;
+  const sol  = data.solution;
+
+  // Статус
+  const badge = document.getElementById('status-badge');
+  badge.style.display = 'block';
+  if (info.converged) {
+    badge.className = 'success';
+    badge.textContent = `✓ Сошлось за ${info.iterations} итераций  |  ‖F(x)‖ = ${info.residual.toExponential(3)}`;
+  } else {
+    badge.className = 'error';
+    badge.textContent = `✗ ${info.error || 'Не сошлось'}  |  ‖F(x)‖ = ${info.residual.toExponential(3)}`;
+  }
+
+  // Решение
+  let solText = sol.map((v,i) => `  x${i+1} = ${v.toPrecision(12)}`).join('\n');
+  solText += `\n\n  ‖F(x)‖ = ${info.residual.toExponential(6)}`;
+  solText += `\n  Итераций: ${info.iterations}`;
+  solText += info.converged ? '\n  Статус: ✓ Сошлось' : '\n  Статус: ✗ Не сошлось';
+  document.getElementById('solution-text').textContent = solText;
+  document.getElementById('solution-box').style.display = 'block';
+
+  // Таблица
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '';
+  info.history.forEach((row, idx) => {
+    const xStr = row.x.map((v,i) => `x${i+1}=${v.toFixed(6)}`).join('  ');
+    const step = row.step !== undefined ? row.step.toExponential(3) : '—';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${row.iter}</td><td>${row.residual.toExponential(3)}</td><td>${step}</td><td style="font-family:monospace;font-size:11px;text-align:left;">${xStr}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('table-box').style.display = 'block';
+
+  // График (Canvas)
+  drawChart(info.history);
+}
+
+function drawChart(history) {
+  document.getElementById('chart-box').style.display = 'block';
+  const canvas = document.getElementById('chart');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.clientWidth - 32;
+  const H = Math.min(220, W * 0.5);
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const PAD = { top: 20, right: 20, bottom: 36, left: 60 };
+  const pw = W - PAD.left - PAD.right;
+  const ph = H - PAD.top  - PAD.bottom;
+
+  const residuals = history.map(h => h.residual).filter(r => r > 0);
+  const iters     = history.map(h => h.iter);
+  const logMin = Math.log10(Math.min(...residuals) * 0.5);
+  const logMax = Math.log10(Math.max(...residuals) * 2);
+
+  const xScale = i => PAD.left + (i / (history.length - 1 || 1)) * pw;
+  const yScale = r => PAD.top + ph - ((Math.log10(Math.max(r, 1e-20)) - logMin) / (logMax - logMin)) * ph;
+
+  // Background
+  ctx.fillStyle = '#181825';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, W, H, 10);
+  ctx.fill();
+
+  // Grid lines
+  ctx.strokeStyle = '#45475a'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = PAD.top + (ph / 4) * i;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + pw, y); ctx.stroke();
+  }
+
+  // Tol line
+  const tol = parseFloat(document.getElementById('tol-input').value) || 1e-10;
+  const tolY = yScale(tol);
+  if (tolY > PAD.top && tolY < PAD.top + ph) {
+    ctx.strokeStyle = '#fab387'; ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(PAD.left, tolY); ctx.lineTo(PAD.left + pw, tolY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#fab387'; ctx.font = '10px -apple-system';
+    ctx.fillText('tol', PAD.left + pw - 22, tolY - 4);
+  }
+
+  // Fill under curve
+  ctx.beginPath();
+  history.forEach((h, i) => {
+    const x = xScale(i), y = yScale(Math.max(h.residual, 1e-20));
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(xScale(history.length - 1), PAD.top + ph);
+  ctx.lineTo(xScale(0), PAD.top + ph);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(124,106,247,0.15)';
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#7c6af7'; ctx.lineWidth = 2.2;
+  history.forEach((h, i) => {
+    const x = xScale(i), y = yScale(Math.max(h.residual, 1e-20));
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dots
+  history.forEach((h, i) => {
+    const x = xScale(i), y = yScale(Math.max(h.residual, 1e-20));
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#56cfb2'; ctx.fill();
+    ctx.strokeStyle = '#7c6af7'; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+
+  // X axis labels
+  ctx.fillStyle = '#6c7086'; ctx.font = '10px -apple-system';
+  ctx.textAlign = 'center';
+  history.forEach((h, i) => {
+    if (history.length <= 10 || i % Math.ceil(history.length / 8) === 0) {
+      ctx.fillText(h.iter, xScale(i), H - PAD.bottom + 16);
+    }
+  });
+
+  // Y axis labels
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const logVal = logMin + ((logMax - logMin) / 4) * (4 - i);
+    ctx.fillText(`1e${Math.round(logVal)}`, PAD.left - 6, PAD.top + (ph / 4) * i + 4);
+  }
+
+  // Axis labels
+  ctx.fillStyle = '#6c7086'; ctx.font = '11px -apple-system';
+  ctx.textAlign = 'center';
+  ctx.fillText('Итерация', PAD.left + pw / 2, H - 4);
+}
+
+// ── Утилиты ──────────────────────────────────────────────────────
+function hideResults() {
+  document.getElementById('status-badge').style.display  = 'none';
+  document.getElementById('solution-box').style.display  = 'none';
+  document.getElementById('table-box').style.display     = 'none';
+  document.getElementById('chart-box').style.display     = 'none';
+}
+
+function showError(msg) {
+  const badge = document.getElementById('status-badge');
+  badge.style.display = 'block';
+  badge.className = 'error';
+  badge.textContent = '✗ ' + msg;
+}
+
+function copySolution() {
+  const text = document.getElementById('solution-text').textContent;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => alert('Скопировано!'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta); alert('Скопировано!');
+  }
+}
+</script>
+</body>
+</html>
+"""
+
+
+# ─── API маршруты ─────────────────────────────────────────────────
+
+@app.route("/")
+def index():
+    return render_template_string(HTML)
+
+
+@app.route("/solve", methods=["POST"])
+def solve():
+    data = request.get_json()
+    equations = data.get("equations", [])
+    x0        = data.get("x0", [])
+    tol       = float(data.get("tol", 1e-10))
+    max_iter  = int(data.get("max_iter", 100))
+    n         = len(equations)
+
+    def F(x_vec):
+        result = np.zeros(n)
+        for i, expr in enumerate(equations):
+            result[i] = eval(expr, {
+                "np": np, "x": x_vec,
+                "sin": np.sin, "cos": np.cos, "tan": np.tan,
+                "exp": np.exp, "log": np.log, "sqrt": np.sqrt,
+                "pi": np.pi, "e": np.e,
+                "__builtins__": {}
+            })
+        return result
+
+    try:
+        solution, info = newton_method(F, x0, tol=tol, max_iter=max_iter)
+        return jsonify({"solution": solution, "info": info})
+    except Exception as ex:
+        return jsonify({"error_msg": str(ex)}), 400
+
+
+# ─── Запуск ───────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import socket
+
+    # Определяем локальный IP-адрес
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+    except Exception:
+        local_ip = "127.0.0.1"
+    finally:
+        s.close()
+
+    import os
+    PORT = int(os.environ.get("PORT", 5050))
+    print("\n" + "═" * 55)
+    print("  🚀  Newton's Method — Web App запущен!")
+    print("═" * 55)
+    print(f"\n  💻  На этом компьютере:")
+    print(f"      http://localhost:{PORT}")
+    print(f"\n  📱  На iPhone (та же Wi-Fi сеть):")
+    print(f"      http://{local_ip}:{PORT}")
+    print(f"\n  ➡  Совет: в Safari на iPhone нажми")
+    print(f"     «Поделиться» → «На экран Домой» —")
+    print(f"     и получишь иконку как у настоящего приложения!")
+    print("\n  Для остановки нажмите Ctrl+C")
+    print("═" * 55 + "\n")
+
+    app.run(host="0.0.0.0", port=PORT, debug=False)
