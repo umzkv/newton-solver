@@ -65,10 +65,10 @@ HTML = r"""
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="theme-color" content="#1e1e2e"/>
+  <meta name="theme-color" id="meta-theme-color" content="#1e1e2e"/>
   <title>Метод Ньютона</title>
   <style>
-    :root {
+    :root, [data-theme="dark"] {
       --bg:        #1e1e2e;
       --surface:   #2a2a3e;
       --surface2:  #313145;
@@ -78,11 +78,36 @@ HTML = r"""
       --error:     #f38ba8;
       --warn:      #fab387;
       --text:      #cdd6f4;
-      --muted:     #6c7086;
+      --muted:     #9399b2;
       --border:    #45475a;
       --entry:     #181825;
+      --keypad-bg: #242438;
       --radius:    14px;
+      --status-success-bg: #1d3a1d;
+      --status-error-bg:   #3a1d1d;
+      --shadow:    rgba(0, 0, 0, 0.45);
     }
+
+    [data-theme="light"] {
+      --bg:        #f3f4f8;
+      --surface:   #ffffff;
+      --surface2:  #eaedf5;
+      --accent:    #6351e6;
+      --accent2:   #0d9488;
+      --success:   #15803d;
+      --error:     #e11d48;
+      --warn:      #d97706;
+      --text:      #1e293b;
+      --muted:     #64748b;
+      --border:    #cbd5e1;
+      --entry:     #f8fafc;
+      --keypad-bg: #f1f5f9;
+      --radius:    14px;
+      --status-success-bg: #dcfce7;
+      --status-error-bg:   #fee2e2;
+      --shadow:    rgba(0, 0, 0, 0.08);
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; }
     html, body {
       background: var(--bg);
@@ -90,19 +115,45 @@ HTML = r"""
       font-family: -apple-system, "SF Pro Display", Helvetica, sans-serif;
       min-height: 100dvh;
       -webkit-text-size-adjust: 100%;
+      transition: background .2s ease, color .2s ease;
     }
 
     /* ── Header ── */
     header {
       background: var(--surface);
-      padding: 18px 20px 14px;
-      padding-top: max(18px, env(safe-area-inset-top));
-      text-align: center;
+      padding: 14px 20px 12px;
+      padding-top: max(14px, env(safe-area-inset-top));
       position: sticky; top: 0; z-index: 100;
       border-bottom: 1px solid var(--border);
+      transition: background .2s ease, border-color .2s ease;
     }
-    header h1 { font-size: 20px; font-weight: 700; color: var(--accent); }
-    header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .header-inner {
+      max-width: 700px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-titles h1 { font-size: 20px; font-weight: 700; color: var(--accent); }
+    .header-titles p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .theme-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .theme-btn:active {
+      transform: scale(0.95);
+      background: var(--border);
+    }
 
     /* ── Layout ── */
     main { padding: 16px; max-width: 700px; margin: 0 auto; padding-bottom: 40px; }
@@ -110,9 +161,12 @@ HTML = r"""
     /* ── Cards ── */
     .card {
       background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 16px;
       margin-bottom: 14px;
+      box-shadow: 0 4px 16px var(--shadow);
+      transition: background .2s ease, border-color .2s ease;
     }
     .card-title {
       font-size: 13px; font-weight: 600;
@@ -178,8 +232,8 @@ HTML = r"""
       padding: 10px 16px; border-radius: 10px;
       font-size: 14px; font-weight: 600; margin-bottom: 14px;
     }
-    #status-badge.success { background: #1d3a1d; color: var(--success); }
-    #status-badge.error   { background: #3a1d1d; color: var(--error);   }
+    #status-badge.success { background: var(--status-success-bg); color: var(--success); }
+    #status-badge.error   { background: var(--status-error-bg);   color: var(--error);   }
 
     /* ── Solution box ── */
     #solution-box { display: none; }
@@ -207,7 +261,7 @@ HTML = r"""
     }
     td { padding: 8px 10px; text-align: center; border-bottom: 1px solid var(--border); }
     tr:last-child td { color: var(--success); font-weight: 600; }
-    tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+    tr:nth-child(even) td { background: rgba(124,106,247,.04); }
 
     /* ── Convergence chart ── */
     #chart-box { display: none; }
@@ -226,14 +280,15 @@ HTML = r"""
     #math-keypad {
       position: fixed;
       bottom: 0; left: 0; right: 0;
-      background: #242438;
+      background: var(--keypad-bg);
       border-top: 2px solid var(--accent);
-      box-shadow: 0 -8px 28px rgba(0,0,0,.6);
+      box-shadow: 0 -8px 28px var(--shadow);
       z-index: 1000;
       display: none;
       padding: 8px 10px max(10px, env(safe-area-inset-bottom));
       user-select: none;
       -webkit-user-select: none;
+      transition: background .2s ease;
     }
     .keypad-header {
       display: flex;
@@ -361,8 +416,16 @@ HTML = r"""
 <body>
 
 <header>
-  <h1>Newton's Method</h1>
-  <p>Системы нелинейных уравнений</p>
+  <div class="header-inner">
+    <div class="header-titles">
+      <h1>Newton's Method</h1>
+      <p>Системы нелинейных уравнений</p>
+    </div>
+    <button id="theme-btn" class="theme-btn" onclick="toggleTheme()" title="Сменить тему оформления">
+      <span id="theme-icon">🌙</span>
+      <span id="theme-text">Тёмная</span>
+    </button>
+  </div>
 </header>
 
 <main>
@@ -548,8 +611,37 @@ const EXAMPLES = [
 let currentN = 2;
 let chartInstance = null;
 
+// ── Переключение темы (Light / Dark) ──────────────────────────────
+let currentTheme = localStorage.getItem('theme') || 
+  (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  try { localStorage.setItem('theme', theme); } catch(e){}
+
+  const iconEl = document.getElementById('theme-icon');
+  const textEl = document.getElementById('theme-text');
+  if (iconEl) iconEl.textContent = theme === 'dark' ? '☀️' : '🌙';
+  if (textEl) textEl.textContent = theme === 'dark' ? 'Светлая' : 'Тёмная';
+
+  const metaTheme = document.getElementById('meta-theme-color');
+  if (metaTheme) metaTheme.setAttribute('content', theme === 'dark' ? '#1e1e2e' : '#f3f4f8');
+
+  if (window.lastHistory) {
+    drawChart(window.lastHistory);
+  }
+}
+
+function toggleTheme() {
+  applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+}
+
+// Применяем тему сразу без мигания
+applyTheme(currentTheme);
+
 // ── Инициализация ────────────────────────────────────────────────
-window.onload = () => { setN(2); loadExample(0); };
+window.onload = () => { applyTheme(currentTheme); setN(2); loadExample(0); };
 
 // ── Математическая клавиатура (логика) ────────────────────────────
 let currentActiveInput = null;
@@ -812,6 +904,7 @@ function showResults(data) {
 }
 
 function drawChart(history) {
+  window.lastHistory = history;
   document.getElementById('chart-box').style.display = 'block';
   const canvas = document.getElementById('chart');
   const dpr = window.devicePixelRatio || 1;
@@ -837,14 +930,23 @@ function drawChart(history) {
   const xScale = i => PAD.left + (i / (history.length - 1 || 1)) * pw;
   const yScale = r => PAD.top + ph - ((Math.log10(Math.max(r, 1e-20)) - logMin) / (logMax - logMin)) * ph;
 
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const chartBg = isLight ? '#f8fafc' : '#181825';
+  const chartGrid = isLight ? '#dbe1ec' : '#45475a';
+  const chartLbl = isLight ? '#64748b' : '#9399b2';
+  const chartLine = isLight ? '#6351e6' : '#7c6af7';
+  const chartDot = isLight ? '#0d9488' : '#56cfb2';
+  const chartFill = isLight ? 'rgba(99, 81, 230, 0.12)' : 'rgba(124, 106, 247, 0.15)';
+  const chartTol = isLight ? '#d97706' : '#fab387';
+
   // Background
-  ctx.fillStyle = '#181825';
+  ctx.fillStyle = chartBg;
   ctx.beginPath();
   ctx.roundRect(0, 0, W, H, 10);
   ctx.fill();
 
   // Grid lines
-  ctx.strokeStyle = '#45475a'; ctx.lineWidth = 0.5;
+  ctx.strokeStyle = chartGrid; ctx.lineWidth = 0.5;
   for (let i = 0; i <= 4; i++) {
     const y = PAD.top + (ph / 4) * i;
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + pw, y); ctx.stroke();
@@ -854,10 +956,10 @@ function drawChart(history) {
   const tol = parseFloat(document.getElementById('tol-input').value) || 1e-10;
   const tolY = yScale(tol);
   if (tolY > PAD.top && tolY < PAD.top + ph) {
-    ctx.strokeStyle = '#fab387'; ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = chartTol; ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
     ctx.beginPath(); ctx.moveTo(PAD.left, tolY); ctx.lineTo(PAD.left + pw, tolY); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = '#fab387'; ctx.font = '10px -apple-system';
+    ctx.fillStyle = chartTol; ctx.font = '10px -apple-system';
     ctx.fillText('tol', PAD.left + pw - 22, tolY - 4);
   }
 
@@ -870,12 +972,12 @@ function drawChart(history) {
   ctx.lineTo(xScale(history.length - 1), PAD.top + ph);
   ctx.lineTo(xScale(0), PAD.top + ph);
   ctx.closePath();
-  ctx.fillStyle = 'rgba(124,106,247,0.15)';
+  ctx.fillStyle = chartFill;
   ctx.fill();
 
   // Line
   ctx.beginPath();
-  ctx.strokeStyle = '#7c6af7'; ctx.lineWidth = 2.2;
+  ctx.strokeStyle = chartLine; ctx.lineWidth = 2.2;
   history.forEach((h, i) => {
     const x = xScale(i), y = yScale(Math.max(h.residual, 1e-20));
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
@@ -887,12 +989,12 @@ function drawChart(history) {
     const x = xScale(i), y = yScale(Math.max(h.residual, 1e-20));
     ctx.beginPath();
     ctx.arc(x, y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#56cfb2'; ctx.fill();
-    ctx.strokeStyle = '#7c6af7'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = chartDot; ctx.fill();
+    ctx.strokeStyle = chartLine; ctx.lineWidth = 1.5; ctx.stroke();
   });
 
   // X axis labels
-  ctx.fillStyle = '#6c7086'; ctx.font = '10px -apple-system';
+  ctx.fillStyle = chartLbl; ctx.font = '10px -apple-system';
   ctx.textAlign = 'center';
   history.forEach((h, i) => {
     if (history.length <= 10 || i % Math.ceil(history.length / 8) === 0) {
@@ -901,6 +1003,7 @@ function drawChart(history) {
   });
 
   // Y axis labels
+  ctx.fillStyle = chartLbl;
   ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
     const logVal = logMin + ((logMax - logMin) / 4) * (4 - i);
@@ -908,7 +1011,7 @@ function drawChart(history) {
   }
 
   // Axis labels
-  ctx.fillStyle = '#6c7086'; ctx.font = '11px -apple-system';
+  ctx.fillStyle = chartLbl; ctx.font = '11px -apple-system';
   ctx.textAlign = 'center';
   ctx.fillText('Итерация', PAD.left + pw / 2, H - 4);
 }
