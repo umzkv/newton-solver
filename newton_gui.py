@@ -41,25 +41,25 @@ FONT_FAMILY = "Helvetica"  # will be updated after Tk root is created
 EXAMPLES = [
     {
         "name": "🔵  Пример 1 — Окружность ∩ Парабола (2×2)",
-        "equations": ["x[0]**2 + x[1]**2 - 4",
-                      "x[0]**2 - x[1] - 1"],
+        "equations": ["x**2 + y**2 - 4",
+                      "x**2 - y - 1"],
         "x0": "1.0  0.5",
-        "desc": "x₁² + x₂² − 4 = 0\nx₁² − x₂ − 1 = 0",
+        "desc": "x² + y² − 4 = 0\nx² − y − 1 = 0",
     },
     {
         "name": "🟣  Пример 2 — Классическая 3×3 (Burden & Faires)",
-        "equations": ["3*x[0] - np.cos(x[1]*x[2]) - 0.5",
-                      "x[0]**2 - 81*(x[1]+0.1)**2 + np.sin(x[2]) + 1.06",
-                      "np.exp(-x[0]*x[1]) + 20*x[2] + (10*np.pi-3)/3"],
+        "equations": ["3*x - cos(y*z) - 0.5",
+                      "x**2 - 81*(y+0.1)**2 + sin(z) + 1.06",
+                      "exp(-x*y) + 20*z + (10*pi-3)/3"],
         "x0": "0.1  0.1  -0.1",
-        "desc": "3x₁ − cos(x₂x₃) − 0.5 = 0\nx₁² − 81(x₂+0.1)² + sin(x₃) + 1.06 = 0\ne^(−x₁x₂) + 20x₃ + (10π−3)/3 = 0",
+        "desc": "3x − cos(yz) − 0.5 = 0\nx² − 81(y+0.1)² + sin(z) + 1.06 = 0\ne^(−xy) + 20z + (10π−3)/3 = 0",
     },
     {
         "name": "🟢  Пример 3 — Тригонометрическая (2×2)",
-        "equations": ["np.sin(x[0]) + x[1] - 1.2",
-                      "x[0] + np.cos(x[1]) - 0.8"],
+        "equations": ["sin(x) + y - 1.2",
+                      "x + cos(y) - 0.8"],
         "x0": "0.5  0.5",
-        "desc": "sin(x₁) + x₂ − 1.2 = 0\nx₁ + cos(x₂) − 0.8 = 0",
+        "desc": "sin(x) + y − 1.2 = 0\nx + cos(y) − 0.8 = 0",
     },
 ]
 
@@ -472,14 +472,37 @@ class NewtonApp(tk.Tk):
             messagebox.showerror("Ошибка", "Некорректные параметры tol / max_iter.")
             return
 
+        var_names = ["x", "y", "z", "w", "u", "v"]
+        clean_equations = []
+        for eq in equations:
+            s = eq.strip()
+            if "=" in s:
+                parts = s.split("=", 1)
+                s = f"({parts[0]}) - ({parts[1]})"
+            s = s.replace("^", "**")
+            for old_v, new_v in {"x[0]": "x", "x[1]": "y", "x[2]": "z", "x[3]": "w", "x[4]": "u"}.items():
+                s = s.replace(old_v, new_v)
+            clean_equations.append(s)
+
         def F(x_vec):
             result = np.zeros(n)
-            for i, expr in enumerate(equations):
-                result[i] = eval(expr, {"np": np, "x": x_vec,
-                                        "sin": np.sin, "cos": np.cos,
-                                        "exp": np.exp, "log": np.log,
-                                        "sqrt": np.sqrt, "pi": np.pi,
-                                        "__builtins__": {}})
+            scope = {
+                "np": np,
+                "sin": np.sin, "cos": np.cos, "tan": np.tan,
+                "arcsin": np.arcsin, "arccos": np.arccos, "arctan": np.arctan,
+                "sinh": np.sinh, "cosh": np.cosh, "tanh": np.tanh,
+                "exp": np.exp, "log": np.log, "log10": np.log10,
+                "sqrt": np.sqrt, "abs": np.abs,
+                "pi": np.pi, "e": np.e,
+                "__builtins__": {}
+            }
+            for idx, val in enumerate(x_vec):
+                if idx < len(var_names):
+                    scope[var_names[idx]] = float(val)
+                scope[f"x{idx+1}"] = float(val)
+
+            for i, expr in enumerate(clean_equations):
+                result[i] = eval(expr, scope)
             return result
 
         self._set_status("Вычисление...")

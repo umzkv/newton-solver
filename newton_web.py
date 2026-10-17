@@ -248,17 +248,18 @@ HTML = r"""
 
   <!-- Уравнения -->
   <div class="card">
-    <div class="card-title">📝 Уравнения (F<sub>i</sub>(x) = 0)</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">
-      Переменные: x[0], x[1], ... &nbsp;|&nbsp; np.sin, np.cos, np.exp, np.log, np.pi
+    <div class="card-title">📝 Уравнения (F<sub>i</sub> = 0)</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;">
+      Переменные: <b style="color:var(--accent2);">x, y, z</b> (или w, u) &nbsp;|&nbsp; Функции: <b>sin, cos, exp, log, sqrt, pi</b><br/>
+      Степень: <b>^</b> или <b>**</b> &nbsp;|&nbsp; Можно писать уравнения с <b>=</b> (напр. <code>x^2 + y^2 = 4</code>)
     </div>
     <div id="eq-container"></div>
   </div>
 
   <!-- Начальное приближение -->
   <div class="card">
-    <div class="card-title">🎯 Начальное приближение x₀</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Числа через пробел</div>
+    <div class="card-title">🎯 Начальное приближение (<span id="x0-vars" style="color:var(--accent2);">x, y</span>)₀</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Числа через пробел (по порядку переменных)</div>
     <input id="x0-input" type="text" placeholder="напр. 1.0  0.5" inputmode="decimal"/>
   </div>
 
@@ -310,25 +311,29 @@ HTML = r"""
 </main>
 
 <script>
+// ── Переменные ───────────────────────────────────────────────────
+const VAR_NAMES = ['x', 'y', 'z', 'w', 'u', 'v'];
+const getVarName = (i) => (i < VAR_NAMES.length ? VAR_NAMES[i] : `x${i+1}`);
+
 // ── Данные примеров ──────────────────────────────────────────────
 const EXAMPLES = [
   {
     n: 2,
-    eqs: ["x[0]**2 + x[1]**2 - 4", "x[0]**2 - x[1] - 1"],
+    eqs: ["x**2 + y**2 - 4", "x**2 - y - 1"],
     x0: "1.0  0.5"
   },
   {
     n: 3,
     eqs: [
-      "3*x[0] - np.cos(x[1]*x[2]) - 0.5",
-      "x[0]**2 - 81*(x[1]+0.1)**2 + np.sin(x[2]) + 1.06",
-      "np.exp(-x[0]*x[1]) + 20*x[2] + (10*np.pi-3)/3"
+      "3*x - cos(y*z) - 0.5",
+      "x**2 - 81*(y+0.1)**2 + sin(z) + 1.06",
+      "exp(-x*y) + 20*z + (10*pi-3)/3"
     ],
     x0: "0.1  0.1  -0.1"
   },
   {
     n: 2,
-    eqs: ["np.sin(x[0]) + x[1] - 1.2", "x[0] + np.cos(x[1]) - 0.8"],
+    eqs: ["sin(x) + y - 1.2", "x + cos(y) - 0.8"],
     x0: "0.5  0.5"
   }
 ];
@@ -344,13 +349,22 @@ function setN(n) {
   [2,3,4,5].forEach(i => {
     document.getElementById('n-'+i).classList.toggle('active', i===n);
   });
+
+  const activeVars = VAR_NAMES.slice(0, n).join(', ');
+  const x0VarsEl = document.getElementById('x0-vars');
+  if (x0VarsEl) x0VarsEl.textContent = activeVars;
+  const x0Input = document.getElementById('x0-input');
+  if (x0Input) {
+    x0Input.placeholder = `напр. ${Array(n).fill('0.5').join('  ')} (для ${activeVars})`;
+  }
+
   const container = document.getElementById('eq-container');
   container.innerHTML = '';
   for (let i = 0; i < n; i++) {
     const row = document.createElement('div');
     row.className = 'eq-row';
     row.innerHTML = `<span class="eq-label">F${i+1} =</span>
-      <input type="text" id="eq-${i}" placeholder="выражение" autocorrect="off" autocapitalize="off" spellcheck="false"/>`;
+      <input type="text" id="eq-${i}" placeholder="выражение (переменные: ${activeVars})" autocorrect="off" autocapitalize="off" spellcheck="false"/>`;
     container.appendChild(row);
   }
 }
@@ -377,7 +391,8 @@ async function solve() {
 
   const x0raw = document.getElementById('x0-input').value.trim().split(/\s+/).map(Number);
   if (x0raw.some(isNaN) || x0raw.length !== currentN) {
-    alert(`Нужно ${currentN} начальных значений через пробел.`); return;
+    const activeVars = VAR_NAMES.slice(0, currentN).join(', ');
+    alert(`Нужно ${currentN} начальных значений через пробел (для переменных: ${activeVars}).`); return;
   }
 
   const tol = parseFloat(document.getElementById('tol-input').value) || 1e-10;
@@ -422,7 +437,7 @@ function showResults(data) {
   }
 
   // Решение
-  let solText = sol.map((v,i) => `  x${i+1} = ${v.toPrecision(12)}`).join('\n');
+  let solText = sol.map((v,i) => `  ${getVarName(i)} = ${v.toPrecision(12)}`).join('\n');
   solText += `\n\n  ‖F(x)‖ = ${info.residual.toExponential(6)}`;
   solText += `\n  Итераций: ${info.iterations}`;
   solText += info.converged ? '\n  Статус: ✓ Сошлось' : '\n  Статус: ✗ Не сошлось';
@@ -433,7 +448,7 @@ function showResults(data) {
   const tbody = document.getElementById('table-body');
   tbody.innerHTML = '';
   info.history.forEach((row, idx) => {
-    const xStr = row.x.map((v,i) => `x${i+1}=${v.toFixed(6)}`).join('  ');
+    const xStr = row.x.map((v,i) => `${getVarName(i)}=${v.toFixed(6)}`).join('  ');
     const step = row.step !== undefined ? row.step.toExponential(3) : '—';
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${row.iter}</td><td>${row.residual.toExponential(3)}</td><td>${step}</td><td style="font-family:monospace;font-size:11px;text-align:left;">${xStr}</td>`;
@@ -586,6 +601,29 @@ def index():
     return render_template_string(HTML)
 
 
+VAR_NAMES = ["x", "y", "z", "w", "u", "v"]
+
+
+def preprocess_equation(expr):
+    expr = expr.strip()
+    if not expr:
+        return expr
+    # Если передано равенство вида 'f(...) = g(...)', приводим к '(f(...)) - (g(...))'
+    if "=" in expr:
+        parts = expr.split("=", 1)
+        expr = f"({parts[0]}) - ({parts[1]})"
+    # Степень: заменяем ^ на **
+    expr = expr.replace("^", "**")
+    # Обратная совместимость с форматом x[0], x[1]...
+    legacy_map = {
+        "x[0]": "x", "x[1]": "y", "x[2]": "z",
+        "x[3]": "w", "x[4]": "u", "x[5]": "v"
+    }
+    for old_v, new_v in legacy_map.items():
+        expr = expr.replace(old_v, new_v)
+    return expr
+
+
 @app.route("/solve", methods=["POST"])
 def solve():
     data = request.get_json()
@@ -595,16 +633,30 @@ def solve():
     max_iter  = int(data.get("max_iter", 100))
     n         = len(equations)
 
+    clean_equations = [preprocess_equation(eq) for eq in equations]
+
     def F(x_vec):
         result = np.zeros(n)
-        for i, expr in enumerate(equations):
-            result[i] = eval(expr, {
-                "np": np, "x": x_vec,
-                "sin": np.sin, "cos": np.cos, "tan": np.tan,
-                "exp": np.exp, "log": np.log, "sqrt": np.sqrt,
-                "pi": np.pi, "e": np.e,
-                "__builtins__": {}
-            })
+        scope = {
+            "np": np,
+            "sin": np.sin, "cos": np.cos, "tan": np.tan,
+            "arcsin": np.arcsin, "arccos": np.arccos, "arctan": np.arctan,
+            "sinh": np.sinh, "cosh": np.cosh, "tanh": np.tanh,
+            "exp": np.exp, "log": np.log, "log10": np.log10,
+            "sqrt": np.sqrt, "abs": np.abs,
+            "pi": np.pi, "e": np.e,
+            "__builtins__": {}
+        }
+        for idx, val in enumerate(x_vec):
+            if idx < len(VAR_NAMES):
+                scope[VAR_NAMES[idx]] = float(val)
+            scope[f"x{idx+1}"] = float(val)  # поддержка x1, x2, ...
+
+        for i, expr in enumerate(clean_equations):
+            try:
+                result[i] = eval(expr, scope)
+            except Exception as e:
+                raise ValueError(f"Ошибка в уравнении F{i+1} ('{equations[i]}'): {e}")
         return result
 
     try:
