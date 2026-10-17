@@ -214,6 +214,141 @@ HTML = r"""
       animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Math Keypad ── */
+    #math-keypad {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: #242438;
+      border-top: 2px solid var(--accent);
+      box-shadow: 0 -8px 28px rgba(0,0,0,.6);
+      z-index: 1000;
+      display: none;
+      padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .keypad-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 600px;
+      margin: 0 auto 6px;
+      padding: 0 4px;
+    }
+    .keypad-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .keypad-title span#keypad-field-name {
+      color: var(--accent2);
+    }
+    .keypad-nav {
+      display: flex;
+      gap: 6px;
+    }
+    .keypad-nav-btn {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .keypad-nav-btn:active {
+      background: var(--border);
+    }
+    .keypad-close-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .keypad-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .k-btn {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: "SF Mono", Menlo, monospace;
+      font-size: 14px;
+      font-weight: 600;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: background 0.1s, transform 0.05s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .k-btn:active {
+      transform: scale(0.92);
+      background: var(--border);
+    }
+    .k-var {
+      color: var(--accent2);
+      background: rgba(86, 207, 178, 0.14);
+      border-color: rgba(86, 207, 178, 0.35);
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .k-fn {
+      color: #b4befe;
+      background: rgba(180, 190, 254, 0.12);
+      border-color: rgba(180, 190, 254, 0.25);
+      font-size: 12px;
+    }
+    .k-op {
+      color: var(--warn);
+      background: rgba(250, 179, 135, 0.12);
+      border-color: rgba(250, 179, 135, 0.3);
+      font-weight: 700;
+    }
+    .k-num {
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .k-ctrl {
+      color: var(--error);
+      background: rgba(243, 139, 168, 0.12);
+      border-color: rgba(243, 139, 168, 0.3);
+    }
+    .k-nav {
+      color: var(--accent);
+      background: rgba(124, 106, 247, 0.15);
+      border-color: rgba(124, 106, 247, 0.3);
+    }
+    .eq-kb-btn {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .eq-kb-btn:active {
+      background: var(--accent);
+    }
+    .active-input {
+      border-color: var(--accent) !important;
+      box-shadow: 0 0 0 2px rgba(124, 106, 247, 0.3) !important;
+    }
   </style>
 </head>
 <body>
@@ -260,7 +395,11 @@ HTML = r"""
   <div class="card">
     <div class="card-title">🎯 Начальное приближение (<span id="x0-vars" style="color:var(--accent2);">x, y</span>)₀</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Числа через пробел (по порядку переменных)</div>
-    <input id="x0-input" type="text" placeholder="напр. 1.0  0.5" inputmode="decimal"/>
+    <div style="display:flex;gap:10px;">
+      <input id="x0-input" type="text" placeholder="напр. 1.0  0.5" inputmode="decimal"
+             onfocus="openKeypadFor(this, 'x₀', -1)" onclick="openKeypadFor(this, 'x₀', -1)"/>
+      <button type="button" class="eq-kb-btn" onmousedown="event.preventDefault()" onclick="openKeypadFor(document.getElementById('x0-input'), 'x₀', -1)" title="Математическая клавиатура">⌨️</button>
+    </div>
   </div>
 
   <!-- Параметры -->
@@ -310,6 +449,66 @@ HTML = r"""
 
 </main>
 
+<!-- Математическая клавиатура -->
+<div id="math-keypad">
+  <div class="keypad-header">
+    <div class="keypad-title">
+      <span style="color:var(--muted);font-weight:400;">Ввод: </span><span id="keypad-field-name">F1</span>
+    </div>
+    <div class="keypad-nav">
+      <button type="button" class="keypad-nav-btn" onmousedown="event.preventDefault()" onclick="navKeypad(-1)">◀ Пред</button>
+      <button type="button" class="keypad-nav-btn" onmousedown="event.preventDefault()" onclick="navKeypad(1)">След ▶</button>
+      <button type="button" class="keypad-close-btn" onmousedown="event.preventDefault()" onclick="hideKeypad()">Готово ✕</button>
+    </div>
+  </div>
+  <div class="keypad-grid">
+    <!-- Ряд 1 -->
+    <button type="button" class="k-btn k-var" onmousedown="event.preventDefault()" onclick="kInsert('x')">x</button>
+    <button type="button" class="k-btn k-var" onmousedown="event.preventDefault()" onclick="kInsert('y')">y</button>
+    <button type="button" class="k-btn k-var" onmousedown="event.preventDefault()" onclick="kInsert('z')">z</button>
+    <button type="button" class="k-btn k-op"  onmousedown="event.preventDefault()" onclick="kInsert('^')">^</button>
+    <button type="button" class="k-btn k-op"  onmousedown="event.preventDefault()" onclick="kInsert('(', -1, ')')">(</button>
+    <button type="button" class="k-btn k-op"  onmousedown="event.preventDefault()" onclick="kInsertCloseParen()">)</button>
+    <button type="button" class="k-btn k-ctrl" onmousedown="event.preventDefault()" onclick="kBackspace()">⌫</button>
+
+    <!-- Ряд 2 -->
+    <button type="button" class="k-btn k-fn" onmousedown="event.preventDefault()" onclick="kInsert('sin(', -1, ')')">sin</button>
+    <button type="button" class="k-btn k-fn" onmousedown="event.preventDefault()" onclick="kInsert('cos(', -1, ')')">cos</button>
+    <button type="button" class="k-btn k-fn" onmousedown="event.preventDefault()" onclick="kInsert('tan(', -1, ')')">tan</button>
+    <button type="button" class="k-btn k-num" onmousedown="event.preventDefault()" onclick="kInsert('7')">7</button>
+    <button type="button" class="k-btn k-num" onmousedown="event.preventDefault()" onclick="kInsert('8')">8</button>
+    <button type="button" class="k-btn k-num" onmousedown="event.preventDefault()" onclick="kInsert('9')">9</button>
+    <button type="button" class="k-btn k-op"  onmousedown="event.preventDefault()" onclick="kInsert('/')">/</button>
+
+    <!-- Ряд 3 -->
+    <button type="button" class="k-btn k-fn" onmousedown="event.preventDefault()" onclick="kInsert('exp(', -1, ')')">exp</button>
+    <button type="button" class="k-btn k-fn" onmousedown="event.preventDefault()" onclick="kInsert('log(', -1, ')')">ln</button>
+    <button type="button" class="k-btn k-fn" onmousedown="event.preventDefault()" onclick="kInsert('sqrt(', -1, ')')">√</button>
+    <button type="button" class="k-btn k-num" onmousedown="event.preventDefault()" onclick="kInsert('4')">4</button>
+    <button type="button" class="k-btn k-num" onmousedown="event.preventDefault()" onclick="kInsert('5')">5</button>
+    <button type="button" class="k-btn k-num" onmousedown="event.preventDefault()" onclick="kInsert('6')">6</button>
+    <button type="button" class="k-btn k-op"  onmousedown="event.preventDefault()" onclick="kInsert('*')">×</button>
+
+    <!-- Ряд 4 -->
+    <button type="button" class="k-btn k-fn" onmousedown="event.preventDefault()" onclick="kInsert('pi')">π</button>
+    <button type="button" class="k-btn k-fn" onmousedown="event.preventDefault()" onclick="kInsert('e')">e</button>
+    <button type="button" class="k-btn k-op"  onmousedown="event.preventDefault()" onclick="kInsert(' = ')">=</button>
+    <button type="button" class="k-btn k-num" onmousedown="event.preventDefault()" onclick="kInsert('1')">1</button>
+    <button type="button" class="k-btn k-num" onmousedown="event.preventDefault()" onclick="kInsert('2')">2</button>
+    <button type="button" class="k-btn k-num" onmousedown="event.preventDefault()" onclick="kInsert('3')">3</button>
+    <button type="button" class="k-btn k-op"  onmousedown="event.preventDefault()" onclick="kInsert('-')">−</button>
+
+    <!-- Ряд 5 -->
+    <button type="button" class="k-btn k-ctrl" onmousedown="event.preventDefault()" onclick="kClear()">AC</button>
+    <button type="button" class="k-btn k-var"  onmousedown="event.preventDefault()" onclick="kInsert('w')">w</button>
+    <button type="button" class="k-btn"        onmousedown="event.preventDefault()" onclick="kInsert(' ')" title="Пробел">␣</button>
+    <button type="button" class="k-btn k-num"  onmousedown="event.preventDefault()" onclick="kInsert('0')">0</button>
+    <button type="button" class="k-btn k-num"  onmousedown="event.preventDefault()" onclick="kInsert('.')">.</button>
+    <button type="button" class="k-btn k-op"   onmousedown="event.preventDefault()" onclick="kInsert('+')">+</button>
+    <button type="button" class="k-btn k-nav"  onmousedown="event.preventDefault()" onclick="navKeypad(1)">↵ F↓</button>
+  </div>
+</div>
+
 <script>
 // ── Переменные ───────────────────────────────────────────────────
 const VAR_NAMES = ['x', 'y', 'z', 'w', 'u', 'v'];
@@ -344,6 +543,129 @@ let chartInstance = null;
 // ── Инициализация ────────────────────────────────────────────────
 window.onload = () => { setN(2); loadExample(0); };
 
+// ── Математическая клавиатура (логика) ────────────────────────────
+let currentActiveInput = null;
+let currentActiveFieldIdx = 0;
+
+function openKeypadFor(inputEl, label, idx) {
+  currentActiveInput = inputEl;
+  currentActiveFieldIdx = idx;
+  document.querySelectorAll('.active-input').forEach(el => el.classList.remove('active-input'));
+  inputEl.classList.add('active-input');
+
+  const nameEl = document.getElementById('keypad-field-name');
+  if (nameEl) nameEl.textContent = label;
+
+  const keypad = document.getElementById('math-keypad');
+  keypad.style.display = 'block';
+  document.body.style.paddingBottom = '290px';
+
+  setTimeout(() => {
+    inputEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 80);
+}
+
+function hideKeypad() {
+  const keypad = document.getElementById('math-keypad');
+  keypad.style.display = 'none';
+  document.body.style.paddingBottom = '0px';
+  document.querySelectorAll('.active-input').forEach(el => el.classList.remove('active-input'));
+  currentActiveInput = null;
+}
+
+function navKeypad(direction) {
+  let fields = [];
+  for (let i = 0; i < currentN; i++) {
+    fields.push({ id: `eq-${i}`, label: `F${i+1}`, idx: i });
+  }
+  fields.push({ id: 'x0-input', label: 'x₀', idx: -1 });
+
+  let curIdx = fields.findIndex(f => f.idx === currentActiveFieldIdx);
+  if (curIdx === -1) curIdx = 0;
+  let nextIdx = curIdx + direction;
+  if (nextIdx >= fields.length) {
+    hideKeypad();
+    return;
+  }
+  if (nextIdx < 0) nextIdx = 0;
+
+  const target = fields[nextIdx];
+  const el = document.getElementById(target.id);
+  if (el) {
+    el.focus();
+    openKeypadFor(el, target.label, target.idx);
+  }
+}
+
+function kInsert(text, cursorOffset = 0, closeChar = '') {
+  if (!currentActiveInput) {
+    const el = document.getElementById('eq-0');
+    if (el) openKeypadFor(el, 'F1', 0);
+    else return;
+  }
+  const el = currentActiveInput;
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+  const val = el.value;
+
+  let insertText = text;
+  if (closeChar) {
+    insertText = text + closeChar;
+  }
+
+  el.value = val.substring(0, start) + insertText + val.substring(end);
+  const newPos = start + insertText.length + cursorOffset;
+  el.focus();
+  el.setSelectionRange(newPos, newPos);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function kInsertCloseParen() {
+  if (!currentActiveInput) return;
+  const el = currentActiveInput;
+  const start = el.selectionStart ?? el.value.length;
+  const val = el.value;
+  if (val.charAt(start) === ')') {
+    el.setSelectionRange(start + 1, start + 1);
+  } else {
+    kInsert(')');
+  }
+}
+
+function kBackspace() {
+  if (!currentActiveInput) return;
+  const el = currentActiveInput;
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+  const val = el.value;
+
+  if (start !== end) {
+    el.value = val.substring(0, start) + val.substring(end);
+    el.setSelectionRange(start, start);
+  } else if (start > 0) {
+    let deleteCount = 1;
+    const prefixes = ['sin(', 'cos(', 'tan(', 'exp(', 'log(', 'sqrt('];
+    for (const p of prefixes) {
+      if (val.substring(0, start).endsWith(p)) {
+        deleteCount = p.length;
+        break;
+      }
+    }
+    el.value = val.substring(0, start - deleteCount) + val.substring(start);
+    const newPos = start - deleteCount;
+    el.setSelectionRange(newPos, newPos);
+  }
+  el.focus();
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function kClear() {
+  if (!currentActiveInput) return;
+  currentActiveInput.value = '';
+  currentActiveInput.focus();
+  currentActiveInput.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 function setN(n) {
   currentN = n;
   [2,3,4,5].forEach(i => {
@@ -364,7 +686,11 @@ function setN(n) {
     const row = document.createElement('div');
     row.className = 'eq-row';
     row.innerHTML = `<span class="eq-label">F${i+1} =</span>
-      <input type="text" id="eq-${i}" placeholder="выражение (переменные: ${activeVars})" autocorrect="off" autocapitalize="off" spellcheck="false"/>`;
+      <input type="text" id="eq-${i}" placeholder="выражение (переменные: ${activeVars})" 
+             autocorrect="off" autocapitalize="off" spellcheck="false"
+             onfocus="openKeypadFor(this, 'F${i+1}', ${i})"
+             onclick="openKeypadFor(this, 'F${i+1}', ${i})"/>
+      <button type="button" class="eq-kb-btn" onmousedown="event.preventDefault()" onclick="openKeypadFor(document.getElementById('eq-${i}'), 'F${i+1}', ${i})" title="Математическая клавиатура">⌨️</button>`;
     container.appendChild(row);
   }
 }
