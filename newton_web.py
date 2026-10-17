@@ -144,6 +144,7 @@ HTML = r"""
       padding: 10px 12px; font-size: 14px; font-family: "SF Mono", Menlo, monospace;
       outline: none; transition: border-color .2s;
       -webkit-appearance: none;
+      caret-color: var(--accent2);
     }
     .eq-row input:focus, .param-row input:focus, #x0-input:focus {
       border-color: var(--accent);
@@ -396,7 +397,7 @@ HTML = r"""
     <div class="card-title">🎯 Начальное приближение (<span id="x0-vars" style="color:var(--accent2);">x, y</span>)₀</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Числа через пробел (по порядку переменных)</div>
     <div style="display:flex;gap:10px;">
-      <input id="x0-input" type="text" placeholder="напр. 1.0  0.5" inputmode="decimal"
+      <input id="x0-input" type="text" placeholder="напр. 1.0  0.5" inputmode="none"
              onfocus="openKeypadFor(this, 'x₀', -1)" onclick="openKeypadFor(this, 'x₀', -1)"/>
       <button type="button" class="eq-kb-btn" onmousedown="event.preventDefault()" onclick="openKeypadFor(document.getElementById('x0-input'), 'x₀', -1)" title="Математическая клавиатура">⌨️</button>
     </div>
@@ -458,6 +459,7 @@ HTML = r"""
     <div class="keypad-nav">
       <button type="button" class="keypad-nav-btn" onmousedown="event.preventDefault()" onclick="navKeypad(-1)">◀ Пред</button>
       <button type="button" class="keypad-nav-btn" onmousedown="event.preventDefault()" onclick="navKeypad(1)">След ▶</button>
+      <button type="button" class="keypad-nav-btn" onmousedown="event.preventDefault()" onclick="switchToSystemKeyboard()" title="Открыть клавиатуру телефона">⌨️ Обычная</button>
       <button type="button" class="keypad-close-btn" onmousedown="event.preventDefault()" onclick="hideKeypad()">Готово ✕</button>
     </div>
   </div>
@@ -550,6 +552,10 @@ let currentActiveFieldIdx = 0;
 function openKeypadFor(inputEl, label, idx) {
   currentActiveInput = inputEl;
   currentActiveFieldIdx = idx;
+
+  // Отключаем появление системной клавиатуры iOS/Android
+  inputEl.setAttribute('inputmode', 'none');
+
   document.querySelectorAll('.active-input').forEach(el => el.classList.remove('active-input'));
   inputEl.classList.add('active-input');
 
@@ -563,6 +569,14 @@ function openKeypadFor(inputEl, label, idx) {
   setTimeout(() => {
     inputEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 80);
+}
+
+function switchToSystemKeyboard() {
+  if (!currentActiveInput) return;
+  const el = currentActiveInput;
+  hideKeypad();
+  el.setAttribute('inputmode', 'text');
+  el.focus();
 }
 
 function hideKeypad() {
@@ -592,6 +606,7 @@ function navKeypad(direction) {
   const target = fields[nextIdx];
   const el = document.getElementById(target.id);
   if (el) {
+    el.setAttribute('inputmode', 'none');
     el.focus();
     openKeypadFor(el, target.label, target.idx);
   }
@@ -604,6 +619,7 @@ function kInsert(text, cursorOffset = 0, closeChar = '') {
     else return;
   }
   const el = currentActiveInput;
+  el.setAttribute('inputmode', 'none');
   const start = el.selectionStart ?? el.value.length;
   const end = el.selectionEnd ?? el.value.length;
   const val = el.value;
@@ -623,6 +639,7 @@ function kInsert(text, cursorOffset = 0, closeChar = '') {
 function kInsertCloseParen() {
   if (!currentActiveInput) return;
   const el = currentActiveInput;
+  el.setAttribute('inputmode', 'none');
   const start = el.selectionStart ?? el.value.length;
   const val = el.value;
   if (val.charAt(start) === ')') {
@@ -635,6 +652,7 @@ function kInsertCloseParen() {
 function kBackspace() {
   if (!currentActiveInput) return;
   const el = currentActiveInput;
+  el.setAttribute('inputmode', 'none');
   const start = el.selectionStart ?? el.value.length;
   const end = el.selectionEnd ?? el.value.length;
   const val = el.value;
@@ -662,6 +680,7 @@ function kBackspace() {
 function kClear() {
   if (!currentActiveInput) return;
   currentActiveInput.value = '';
+  currentActiveInput.setAttribute('inputmode', 'none');
   currentActiveInput.focus();
   currentActiveInput.dispatchEvent(new Event('input', { bubbles: true }));
 }
@@ -686,7 +705,7 @@ function setN(n) {
     const row = document.createElement('div');
     row.className = 'eq-row';
     row.innerHTML = `<span class="eq-label">F${i+1} =</span>
-      <input type="text" id="eq-${i}" placeholder="выражение (переменные: ${activeVars})" 
+      <input type="text" id="eq-${i}" inputmode="none" placeholder="выражение (переменные: ${activeVars})" 
              autocorrect="off" autocapitalize="off" spellcheck="false"
              onfocus="openKeypadFor(this, 'F${i+1}', ${i})"
              onclick="openKeypadFor(this, 'F${i+1}', ${i})"/>
