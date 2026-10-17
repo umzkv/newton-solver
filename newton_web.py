@@ -62,7 +62,7 @@ HTML = r"""
 <html lang="ru">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#1e1e2e"/>
@@ -83,8 +83,14 @@ HTML = r"""
       --entry:     #181825;
       --radius:    14px;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { background: var(--bg); color: var(--text); font-family: -apple-system, "SF Pro Display", Helvetica, sans-serif; min-height: 100dvh; }
+    * { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; }
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, "SF Pro Display", Helvetica, sans-serif;
+      min-height: 100dvh;
+      -webkit-text-size-adjust: 100%;
+    }
 
     /* ── Header ── */
     header {
@@ -141,7 +147,7 @@ HTML = r"""
     .eq-row input, .param-row input, #x0-input {
       flex: 1; background: var(--entry); color: var(--text);
       border: 1.5px solid var(--border); border-radius: 10px;
-      padding: 10px 12px; font-size: 14px; font-family: "SF Mono", Menlo, monospace;
+      padding: 10px 12px; font-size: 16px; font-family: "SF Mono", Menlo, monospace;
       outline: none; transition: border-color .2s;
       -webkit-appearance: none;
       caret-color: var(--accent2);
@@ -607,7 +613,7 @@ function navKeypad(direction) {
   const el = document.getElementById(target.id);
   if (el) {
     el.setAttribute('inputmode', 'none');
-    el.focus();
+    el.focus({ preventScroll: true });
     openKeypadFor(el, target.label, target.idx);
   }
 }
