@@ -13,4 +13,4 @@ COPY . .
 EXPOSE 5050
 ENV PORT=5050
 
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5050} newton_web:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5050} --workers 2 --threads 4 --worker-class gthread newton_web:app"]
